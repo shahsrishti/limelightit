@@ -1,11 +1,11 @@
 'use client';
 
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { config } from '@/config';
 import { useAuthStore } from '@/store/auth.store';
 import { useUIStore } from '@/store/ui.store';
-import { AlertEvent, StatusEvent, TelemetryEvent } from '@/types/dashboard.types';
+import { AlertEvent } from '@/types/dashboard.types';
 
 interface SocketContextValue {
   socket: Socket | null;
@@ -18,7 +18,8 @@ const SocketContext = createContext<SocketContextValue>({
 });
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
-  const socketRef = useRef<Socket | null>(null);
+  // Use state (not just a ref) so context consumers re-render when socket is ready
+  const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const { isAuthenticated } = useAuthStore();
   const { addNotification } = useUIStore();
@@ -26,8 +27,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    // Initialize Socket.IO connection
-    const socket = io(config.socket.url, {
+    const newSocket = io(config.socket.url, {
       withCredentials: true,
       transports: ['websocket', 'polling'],
       reconnection: true,
@@ -35,31 +35,33 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       reconnectionAttempts: Infinity,
     });
 
-    socketRef.current = socket;
-
-    socket.on('connect', () => {
-      console.log('[Socket] Connected:', socket.id);
+    newSocket.on('connect', () => {
+      console.log('[Socket] Connected:', newSocket.id);
       setIsConnected(true);
     });
 
-    socket.on('disconnect', () => {
+    newSocket.on('disconnect', () => {
       console.log('[Socket] Disconnected');
       setIsConnected(false);
     });
 
     // Global alert listener — pushes to notification store
-    socket.on('alert:new', (event: AlertEvent) => {
+    newSocket.on('alert:new', (event: AlertEvent) => {
       addNotification(event);
     });
 
+    // Expose the socket instance to all consumers via context
+    setSocket(newSocket);
+
     return () => {
-      socket.disconnect();
-      socketRef.current = null;
+      newSocket.disconnect();
+      setSocket(null);
+      setIsConnected(false);
     };
   }, [isAuthenticated, addNotification]);
 
   return (
-    <SocketContext.Provider value={{ socket: socketRef.current, isConnected }}>
+    <SocketContext.Provider value={{ socket, isConnected }}>
       {children}
     </SocketContext.Provider>
   );

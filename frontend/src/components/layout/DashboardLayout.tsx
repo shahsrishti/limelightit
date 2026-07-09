@@ -6,6 +6,7 @@ import { Header } from './Header';
 import { useUIStore } from '@/store/ui.store';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/store/auth.store';
 import { useRouter } from 'next/navigation';
 import { X, LayoutDashboard, Cpu, HeartPulse, TrendingUp, Flame, AlertTriangle, Clock, FileSpreadsheet, Users, Settings } from 'lucide-react';
 import { Button } from '../ui/Button';
@@ -37,15 +38,29 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { isAuthenticated, user } = useAuth();
   const { sidebarOpen, setSidebarOpen } = useUIStore();
+  const [hasHydrated, setHasHydrated] = React.useState(false);
 
-  // Redirect to login if not authenticated
+  // Wait for Zustand persist to rehydrate from localStorage before acting
   React.useEffect(() => {
-    if (!isAuthenticated) {
+    const unsub = useAuthStore.persist.onFinishHydration(() => {
+      setHasHydrated(true);
+    });
+    // If already hydrated (e.g. subsequent renders), set immediately
+    if (useAuthStore.persist.hasHydrated()) {
+      setHasHydrated(true);
+    }
+    return unsub;
+  }, []);
+
+  // Redirect to login only after hydration is confirmed
+  React.useEffect(() => {
+    if (hasHydrated && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [hasHydrated, isAuthenticated, router]);
 
-  if (!isAuthenticated) {
+  // Show spinner while store is hydrating or while unauthenticated (before redirect)
+  if (!hasHydrated || !isAuthenticated) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
