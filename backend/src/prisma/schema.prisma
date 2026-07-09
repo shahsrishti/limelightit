@@ -1,0 +1,182 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// AUTHENTICATION & USERS
+// ==========================================
+
+model User {
+  id           String         @id @default(uuid())
+  email        String         @unique
+  password     String
+  firstName    String?
+  lastName     String?
+  roleId       String
+  role         Role           @relation(fields: [roleId], references: [id])
+  refreshTokens RefreshToken[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique // SUPER_ADMIN, ADMIN, SUPERVISOR, VIEWER
+  description String?
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("roles")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+// ==========================================
+// ADMINISTRATION (Hierarchy)
+// ==========================================
+
+model Factory {
+  id          String    @id @default(uuid())
+  name        String
+  location    String?
+  machines    Machine[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("factories")
+}
+
+model Machine {
+  id          String   @id @default(uuid())
+  name        String
+  factoryId   String
+  factory     Factory  @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  devices     Device[]
+  
+  // Relations to monitoring data
+  statuses    MachineStatus[]
+  metrics     MachineMetric[]
+  downtimes   DowntimeSession[]
+  oee         OEESnapshot[]
+  alerts      Alert[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("machines")
+}
+
+model Device {
+  id          String   @id @default(uuid())
+  macAddress  String   @unique
+  machineId   String
+  machine     Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  
+  healthRecords DeviceHealth[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("devices")
+}
+
+// ==========================================
+// MONITORING & TELEMETRY
+// ==========================================
+
+model MachineStatus {
+  id          String   @id @default(uuid())
+  machineId   String
+  machine     Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  status      String   // RUNNING, IDLE, STOPPED, ERROR
+  timestamp   DateTime @default(now())
+
+  @@index([machineId, timestamp])
+  @@map("machine_statuses")
+}
+
+model MachineMetric {
+  id          String   @id @default(uuid())
+  machineId   String
+  machine     Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  temperature Float?
+  vibration   Float?
+  speed       Float?
+  power       Float?
+  timestamp   DateTime @default(now())
+
+  @@index([machineId, timestamp])
+  @@map("machine_metrics")
+}
+
+model DeviceHealth {
+  id          String   @id @default(uuid())
+  deviceId    String
+  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  battery     Float?
+  signal      Float?
+  uptime      Int?
+  timestamp   DateTime @default(now())
+
+  @@index([deviceId, timestamp])
+  @@map("device_health")
+}
+
+model Alert {
+  id          String   @id @default(uuid())
+  machineId   String
+  machine     Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  type        String   // WARNING, CRITICAL, INFO
+  message     String
+  resolved    Boolean  @default(false)
+  timestamp   DateTime @default(now())
+
+  @@index([machineId, resolved])
+  @@map("alerts")
+}
+
+model DowntimeSession {
+  id          String   @id @default(uuid())
+  machineId   String
+  machine     Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  startTime   DateTime
+  endTime     DateTime?
+  reason      String?
+
+  @@index([machineId, startTime])
+  @@map("downtime_sessions")
+}
+
+model OEESnapshot {
+  id          String   @id @default(uuid())
+  machineId   String
+  machine     Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  availability Float
+  performance  Float
+  quality      Float
+  oee         Float
+  timestamp   DateTime @default(now())
+
+  @@index([machineId, timestamp])
+  @@map("oee_snapshots")
+}
