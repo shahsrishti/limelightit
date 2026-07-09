@@ -1,9 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../prisma/client';
 import { logger } from '../utils/logger';
 import { HealthPayloadSchema } from '../validators/mqtt.validator';
 import { emit, SocketEvents } from '../socket/emitter';
-
-const prisma = new PrismaClient();
 
 export const handleHealth = async (topic: string, raw: unknown): Promise<void> => {
   const result = HealthPayloadSchema.safeParse(raw);

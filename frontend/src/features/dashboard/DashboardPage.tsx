@@ -53,7 +53,7 @@ export function DashboardPage() {
   const [activeAlertsCount, setActiveAlertsCount] = useState(0);
 
   // Subscribe to real-time telemetry updates
-  useSocket('telemetry:data', (event) => {
+  useSocket('telemetry:update', (event) => {
     // Add real-time data point to telemetry history chart
     setTelemetryHistory((prev) => {
       const now = new Date();

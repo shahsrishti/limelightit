@@ -1,9 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../prisma/client';
 import { logger } from '../utils/logger';
 import { LwtPayloadSchema } from '../validators/mqtt.validator';
 import { emit, SocketEvents } from '../socket/emitter';
-
-const prisma = new PrismaClient();
 
 /**
  * LWT (Last Will and Testament) handler.

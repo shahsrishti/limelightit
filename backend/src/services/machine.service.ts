@@ -1,8 +1,7 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { prisma } from '../prisma/client';
+import { Prisma } from '@prisma/client';
 import { logger } from '../utils/logger';
 import { AppError } from '../utils/AppError';
-
-const prisma = new PrismaClient();
 
 export interface MachineListQuery {
   page?: number;

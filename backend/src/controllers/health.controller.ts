@@ -1,9 +1,7 @@
 import { Request, Response } from 'express';
 import { successResponse } from '../utils/apiResponse';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../prisma/client';
 import { mqttClient } from '../mqtt/client';
-
-const prisma = new PrismaClient();
 
 export class HealthController {
   public async getHealth(req: Request, res: Response) {

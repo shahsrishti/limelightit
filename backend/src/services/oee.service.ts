@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../prisma/client';
 import { logger } from '../utils/logger';
-
-const prisma = new PrismaClient();
 
 export interface OEEQuery {
   machineId?: string;

@@ -27,12 +27,13 @@ export class MQTTClient {
       this.isConnected = true;
       logger.info('✅ Successfully connected to VerneMQ MQTT Broker');
 
+      const topics = ['Limelight/#', 'mfg/#'];
       // Subscribe to all manufacturing telemetry topics
-      this.client!.subscribe(SUBSCRIBE_TOPIC, { qos: 1 }, (err) => {
+      this.client!.subscribe(topics, { qos: 1 }, (err) => {
         if (err) {
-          logger.error({ err }, `Failed to subscribe to topic: ${SUBSCRIBE_TOPIC}`);
+          logger.error({ err }, `Failed to subscribe to topics: ${topics.join(', ')}`);
         } else {
-          logger.info(`✅ Subscribed to MQTT topic: ${SUBSCRIBE_TOPIC}`);
+          logger.info(`✅ Subscribed to MQTT topics: ${topics.join(', ')}`);
         }
       });
     });

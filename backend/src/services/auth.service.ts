@@ -1,10 +1,8 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../prisma/client';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { AppError } from '../utils/AppError';
 import { env } from '../config/env';
-
-const prisma = new PrismaClient();
 
 export class AuthService {
   private generateTokens(userId: string, role: string) {
