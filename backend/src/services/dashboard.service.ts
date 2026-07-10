@@ -50,10 +50,17 @@ export class DashboardService {
 
     // OEE: For a real factory, OEE comes from OEESnapshot. 
     // Here we retrieve the most recent average as a dashboard KPI.
-    const latestOEE = await prisma.oEESnapshot.aggregate({
+    // Fall back to all-time average if there are no snapshots today.
+    let latestOEE = await prisma.oEESnapshot.aggregate({
       where: { timestamp: { gte: today } },
       _avg: { oee: true },
     });
+
+    if (latestOEE._avg.oee === null) {
+      latestOEE = await prisma.oEESnapshot.aggregate({
+        _avg: { oee: true },
+      });
+    }
 
     return {
       totalMachines,

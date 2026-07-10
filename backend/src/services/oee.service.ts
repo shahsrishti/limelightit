@@ -11,15 +11,14 @@ export class OEEService {
   public async getOEE(query: OEEQuery) {
     const { machineId, from, to } = query;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const fromDate = from ? new Date(from) : today;
-    const toDate = to ? new Date(to) : new Date();
-
     const where = {
       ...(machineId && { machineId }),
-      timestamp: { gte: fromDate, lte: toDate },
+      ...((from || to) && {
+        timestamp: {
+          ...(from && { gte: new Date(from) }),
+          ...(to && { lte: new Date(to) }),
+        },
+      }),
     };
 
     const [snapshots, aggregate] = await Promise.all([

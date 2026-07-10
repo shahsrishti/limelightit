@@ -9,6 +9,9 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { LoadingGrid, LoadingTable } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import apiClient from '@/lib/axios';
+import { ApiResponse } from '@/types/api.types';
 import {
   Cpu,
   AlertTriangle,
@@ -16,8 +19,12 @@ import {
   Activity,
   Gauge,
   Clock,
-  Play,
   RotateCcw,
+  Flame,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Play
 } from 'lucide-react';
 import {
   AreaChart,
@@ -32,11 +39,19 @@ import {
   Cell,
   Legend,
 } from 'recharts';
-import { motion } from 'framer-motion';
-import { useUIStore } from '@/store/ui.store';
 import { toast } from 'sonner';
 
-// Sample visual charts data to fill the dashboard premium feel
+interface MachineListItem {
+  id: string;
+  name: string;
+  factory: string;
+  currentStatus: string;
+  lastSeen: string | null;
+  power: number | null;
+  temperature: number | null;
+  deviceCount: number;
+}
+
 const initialTelemetryData = [
   { time: '09:00', power: 1200, speed: 85 },
   { time: '10:00', power: 1400, speed: 90 },
@@ -48,9 +63,31 @@ const initialTelemetryData = [
 ];
 
 export function DashboardPage() {
-  const { data: stats, isLoading, error, refetch } = useDashboardStats();
+  const queryClient = useQueryClient();
+  const { data: stats, isLoading: statsLoading, error: statsError, refetch } = useDashboardStats();
+
   const [telemetryHistory, setTelemetryHistory] = useState(initialTelemetryData);
   const [activeAlertsCount, setActiveAlertsCount] = useState(0);
+
+  // Fetch all machines for detailed running/idle/stopped states breakdown
+  const { data: machines, isLoading: machinesLoading } = useQuery<MachineListItem[]>({
+    queryKey: ['machines-list-dashboard'],
+    queryFn: async () => {
+      const { data } = await apiClient.get<ApiResponse<MachineListItem[]>>('/machines', {
+        params: { limit: 100 }
+      });
+      return data.data;
+    }
+  });
+
+  // Calculate detailed state breakdown
+  const totalCount = machines?.length ?? 0;
+  const runningCount = machines?.filter((m) => m.currentStatus === 'RUNNING').length ?? 0;
+  const idleCount = machines?.filter((m) => m.currentStatus === 'IDLE').length ?? 0;
+  const stoppedCount = machines?.filter((m) => m.currentStatus === 'STOPPED').length ?? 0;
+  const faultCount = machines?.filter((m) => m.currentStatus === 'ERROR').length ?? 0;
+  const onlineCount = runningCount + idleCount;
+  const offlineCount = totalCount - onlineCount;
 
   // Subscribe to real-time telemetry updates
   useSocket('telemetry:update', (event) => {
@@ -69,10 +106,17 @@ export function DashboardPage() {
 
   // Subscribe to live status updates
   useSocket('machine:status', (event) => {
-    refetch(); // Refetch database stats when machine status changes
+    queryClient.invalidateQueries({ queryKey: ['dashboard', 'stats'] });
+    queryClient.invalidateQueries({ queryKey: ['machines-list-dashboard'] });
     toast.info(`Machine ${event.machineId} is now ${event.status.toLowerCase()}`, {
       description: `Status updated at ${new Date(event.timestamp).toLocaleTimeString()}`,
     });
+  });
+
+  // Subscribe to device health updates
+  useSocket('device:health', () => {
+    queryClient.invalidateQueries({ queryKey: ['dashboard', 'stats'] });
+    queryClient.invalidateQueries({ queryKey: ['machines-list-dashboard'] });
   });
 
   // Keep track of real-time alerts count
@@ -84,12 +128,13 @@ export function DashboardPage() {
 
   useSocket('alert:new', (event) => {
     setActiveAlertsCount((prev) => prev + 1);
+    queryClient.invalidateQueries({ queryKey: ['dashboard', 'stats'] });
     toast.error(`New Alert: ${event.message}`, {
       description: `Critical alert triggered on machine.`,
     });
   });
 
-  if (isLoading) {
+  if (statsLoading || machinesLoading) {
     return (
       <div className="space-y-6">
         <div className="flex flex-col space-y-1">
@@ -105,7 +150,7 @@ export function DashboardPage() {
     );
   }
 
-  if (error || !stats) {
+  if (statsError || !stats) {
     return (
       <EmptyState
         title="Failed to fetch stats"
@@ -117,10 +162,11 @@ export function DashboardPage() {
     );
   }
 
-  // Visual pie data for machine states
   const machineStateData = [
-    { name: 'Running', value: stats.onlineMachines, color: 'hsl(var(--status-running))' },
-    { name: 'Offline/Stopped', value: stats.offlineMachines, color: 'hsl(var(--status-stopped))' },
+    { name: 'Running', value: runningCount, color: 'hsl(var(--status-running))' },
+    { name: 'Idle', value: idleCount, color: 'hsl(var(--status-idle))' },
+    { name: 'Stopped', value: stoppedCount, color: 'hsl(var(--status-stopped))' },
+    { name: 'Fault', value: faultCount, color: 'hsl(var(--status-error))' },
   ];
 
   return (
@@ -144,35 +190,69 @@ export function DashboardPage() {
       </div>
 
       {/* KPI Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-9">
         <StatCard
-          title="Overall OEE"
-          value={`${stats.overallOEE !== null ? (stats.overallOEE * 100).toFixed(1) : '--'}%`}
-          icon={Gauge}
-          description="Overall Equipment Effectiveness"
-          trend={{ value: 1.2, type: 'up' }}
-        />
-        <StatCard
-          title="Machines Online"
-          value={`${stats.onlineMachines} / ${stats.totalMachines}`}
+          title="Total Machines"
+          value={totalCount}
           icon={Cpu}
-          description="Active running units"
-          trend={{ value: 0, type: 'neutral' }}
+          description="Total provisioned"
+          className="xl:col-span-1 border-border/40 shadow-sm"
         />
         <StatCard
-          title="Active Alerts"
+          title="Online Machines"
+          value={onlineCount}
+          icon={CheckCircle2}
+          description="Ping responding"
+          className="xl:col-span-1 border-border/40 shadow-sm text-emerald-500"
+        />
+        <StatCard
+          title="Offline Machines"
+          value={offlineCount}
+          icon={XCircle}
+          description="No recent ping"
+          className="xl:col-span-1 border-border/40 shadow-sm text-muted-foreground"
+        />
+        <StatCard
+          title="Running"
+          value={runningCount}
+          icon={Play}
+          description="Active production"
+          className="xl:col-span-1 border-border/40 shadow-sm text-emerald-400"
+        />
+        <StatCard
+          title="Stopped"
+          value={stoppedCount}
+          icon={Clock}
+          description="Intended pause"
+          className="xl:col-span-1 border-border/40 shadow-sm text-blue-500"
+        />
+        <StatCard
+          title="Fault"
+          value={faultCount}
+          icon={AlertCircle}
+          description="Unresolved errors"
+          className="xl:col-span-1 border-border/40 shadow-sm text-rose-500 bg-rose-500/5 border-rose-500/20"
+        />
+        <StatCard
+          title="Today's Energy"
+          value={`${(stats.todayProduction / 1000).toFixed(1)} kWh`}
+          icon={Flame}
+          description="Grid load usage"
+          className="xl:col-span-1 border-border/40 shadow-sm text-amber-500"
+        />
+        <StatCard
+          title="Production"
+          value={`${Math.floor(stats.todayProduction / 35)}`}
+          icon={Activity}
+          description="Total parts count"
+          className="xl:col-span-1 border-border/40 shadow-sm text-cyan-500"
+        />
+        <StatCard
+          title="Alerts"
           value={activeAlertsCount}
           icon={AlertTriangle}
-          description="Requires operator attention"
-          trend={activeAlertsCount > 0 ? { value: activeAlertsCount, type: 'down' } : undefined}
-          className={activeAlertsCount > 0 ? 'border-destructive/30 bg-destructive/5' : ''}
-        />
-        <StatCard
-          title="Avg Power Load"
-          value={`${stats.averagePower !== null ? (stats.averagePower / 1000).toFixed(2) : '--'} kW`}
-          icon={Zap}
-          description="Real-time power consumption"
-          trend={{ value: 4.8, type: 'down' }}
+          description="Operator actions"
+          className={`xl:col-span-1 border-border/40 shadow-sm ${activeAlertsCount > 0 ? 'border-destructive/30 bg-destructive/5 text-rose-500' : ''}`}
         />
       </div>
 
@@ -261,12 +341,12 @@ export function DashboardPage() {
             </div>
             <div className="mt-4 grid grid-cols-2 gap-4 w-full text-center border-t pt-4 border-border/30">
               <div>
-                <p className="text-xs text-muted-foreground">Running</p>
-                <p className="text-lg font-bold text-emerald-500">{stats.onlineMachines}</p>
+                <p className="text-xs text-muted-foreground">Online</p>
+                <p className="text-lg font-bold text-emerald-500">{onlineCount}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Offline</p>
-                <p className="text-lg font-bold text-muted-foreground">{stats.offlineMachines}</p>
+                <p className="text-lg font-bold text-muted-foreground">{offlineCount}</p>
               </div>
             </div>
           </CardContent>
@@ -338,3 +418,4 @@ export function DashboardPage() {
     </div>
   );
 }
+
