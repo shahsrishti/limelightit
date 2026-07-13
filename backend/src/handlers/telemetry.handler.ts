@@ -2,6 +2,7 @@ import { prisma } from '../prisma/client';
 import { logger } from '../utils/logger';
 import { TelemetryPayloadSchema } from '../validators/mqtt.validator';
 import { emit, SocketEvents } from '../socket/emitter';
+import { heartbeatService } from '../services/heartbeat.service';
 
 export const handleTelemetry = async (topic: string, raw: unknown): Promise<void> => {
   // Step 1: Validate payload strictly
@@ -49,6 +50,11 @@ export const handleTelemetry = async (topic: string, raw: unknown): Promise<void
     logger.info(
       { machineId: payload.machineId, metricId: metric.id },
       'Telemetry stored successfully'
+    );
+
+    // Resolve offline alert if active
+    heartbeatService.handleDeviceResume(payload.machineId).catch((err: any) =>
+      logger.error({ machineId: payload.machineId, err }, 'Failed to process heartbeat resume')
     );
 
     // Step 5: Emit real-time update to admin dashboard

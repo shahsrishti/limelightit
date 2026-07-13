@@ -3,6 +3,10 @@ import { Prisma } from '@prisma/client';
 import { logger } from '../utils/logger';
 import { AppError } from '../utils/AppError';
 
+// Whitelist of allowed sort fields to prevent raw user input from crashing Prisma
+const ALLOWED_SORT_FIELDS = ['name', 'createdAt', 'updatedAt'] as const;
+type AllowedSortField = typeof ALLOWED_SORT_FIELDS[number];
+
 export interface MachineListQuery {
   page?: number;
   limit?: number;
@@ -22,10 +26,15 @@ export class MachineService {
       page = 1,
       limit = 20,
       search,
+      status,
       factoryId,
-      sortBy = 'createdAt',
       sortOrder = 'desc',
     } = query;
+
+    // Validate and sanitize sortBy to prevent raw user input from crashing Prisma
+    const safeSortBy: AllowedSortField = ALLOWED_SORT_FIELDS.includes(query.sortBy as AllowedSortField)
+      ? (query.sortBy as AllowedSortField)
+      : 'createdAt';
 
     const skip = (page - 1) * limit;
 
@@ -41,7 +50,7 @@ export class MachineService {
         where,
         skip,
         take: limit,
-        orderBy: { [sortBy]: sortOrder },
+        orderBy: { [safeSortBy]: sortOrder },
         include: {
           factory: { select: { name: true } },
           devices: { select: { id: true, macAddress: true } },

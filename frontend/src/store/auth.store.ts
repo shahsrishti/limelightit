@@ -33,7 +33,14 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: config.auth.userKey,
-      partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
+      // Do not persist isAuthenticated — derive it from user !== null on rehydration
+      // This prevents stale auth state after token expiry
+      partialize: (state) => ({ user: state.user }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.isAuthenticated = state.user !== null;
+        }
+      },
     }
   )
 );

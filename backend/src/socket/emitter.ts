@@ -1,5 +1,6 @@
 import { Server } from 'socket.io';
 import { logger } from '../utils/logger';
+import { broadcastSocketEvent } from './socket.adapter';
 
 let _io: Server | null = null;
 
@@ -17,22 +18,20 @@ export const initSocketEmitter = (io: Server): void => {
  * Safe to call from any layer (services, handlers, etc.)
  */
 export const emit = (event: string, data: unknown): void => {
-  if (!_io) {
-    logger.warn(`Socket.IO not initialized — cannot emit event: ${event}`);
-    return;
+  if (_io) {
+    _io.emit(event, data);
   }
-  _io.emit(event, data);
+  broadcastSocketEvent(event, data);
 };
 
 /**
  * Emit a Socket.IO event to a specific room.
  */
 export const emitToRoom = (room: string, event: string, data: unknown): void => {
-  if (!_io) {
-    logger.warn(`Socket.IO not initialized — cannot emit to room: ${room}`);
-    return;
+  if (_io) {
+    _io.to(room).emit(event, data);
   }
-  _io.to(room).emit(event, data);
+  broadcastSocketEvent(event, data);
 };
 
 // Named socket events for type safety
@@ -46,3 +45,7 @@ export const SocketEvents = {
   DEVICE_HEALTH_UPDATE: 'device:health',
   DASHBOARD_STATS: 'dashboard:stats',
 } as const;
+
+export const getActiveClientsCount = (): number => {
+  return _io ? _io.engine.clientsCount : 0;
+};

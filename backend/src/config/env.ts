@@ -19,6 +19,11 @@ const envSchema = z.object({
   MQTT_CLIENT_ID: z.string().default('admin-backend'),
   
   CORS_ORIGIN: z.string().default('*'),
+  
+  REDIS_HOST: z.string().default('localhost'),
+  REDIS_PORT: z.string().default('6379'),
+  OFFLINE_TIMEOUT_SECONDS: z.string().default('60').transform(Number),
+  TELEMETRY_RETENTION_DAYS: z.string().default('30').transform(Number),
 });
 
 const parseResult = envSchema.safeParse(process.env);

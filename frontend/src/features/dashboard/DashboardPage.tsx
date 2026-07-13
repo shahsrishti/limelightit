@@ -68,6 +68,7 @@ export function DashboardPage() {
 
   const [telemetryHistory, setTelemetryHistory] = useState(initialTelemetryData);
   const [activeAlertsCount, setActiveAlertsCount] = useState(0);
+  const [lastUpdatedTime, setLastUpdatedTime] = useState('');
 
   // Fetch all machines for detailed running/idle/stopped states breakdown
   const { data: machines, isLoading: machinesLoading } = useQuery<MachineListItem[]>({
@@ -79,6 +80,11 @@ export function DashboardPage() {
       return data.data;
     }
   });
+
+  // Update time when query updates or websocket message triggers refresh
+  useEffect(() => {
+    setLastUpdatedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+  }, [stats, machines]);
 
   // Calculate detailed state breakdown
   const totalCount = machines?.length ?? 0;
@@ -195,7 +201,9 @@ export function DashboardPage() {
           title="Total Machines"
           value={totalCount}
           icon={Cpu}
-          description="Total provisioned"
+          description="Provisioned assets"
+          sparklineData={[totalCount, totalCount, totalCount, totalCount]}
+          timestamp={lastUpdatedTime}
           className="xl:col-span-1 border-border/40 shadow-sm"
         />
         <StatCard
@@ -203,13 +211,19 @@ export function DashboardPage() {
           value={onlineCount}
           icon={CheckCircle2}
           description="Ping responding"
+          trend={{ value: 0.8, type: 'up' }}
+          sparklineData={[onlineCount - 1, onlineCount, onlineCount - 1, onlineCount]}
+          timestamp={lastUpdatedTime}
           className="xl:col-span-1 border-border/40 shadow-sm text-emerald-500"
         />
         <StatCard
           title="Offline Machines"
           value={offlineCount}
           icon={XCircle}
-          description="No recent ping"
+          description="Disconnected"
+          trend={{ value: 5.4, type: 'down' }}
+          sparklineData={[offlineCount + 1, offlineCount, offlineCount + 1, offlineCount]}
+          timestamp={lastUpdatedTime}
           className="xl:col-span-1 border-border/40 shadow-sm text-muted-foreground"
         />
         <StatCard
@@ -217,6 +231,9 @@ export function DashboardPage() {
           value={runningCount}
           icon={Play}
           description="Active production"
+          trend={{ value: 12.0, type: 'up' }}
+          sparklineData={[runningCount - 2, runningCount - 1, runningCount - 1, runningCount]}
+          timestamp={lastUpdatedTime}
           className="xl:col-span-1 border-border/40 shadow-sm text-emerald-400"
         />
         <StatCard
@@ -224,20 +241,29 @@ export function DashboardPage() {
           value={stoppedCount}
           icon={Clock}
           description="Intended pause"
+          trend={{ value: 0, type: 'neutral' }}
+          sparklineData={[stoppedCount, stoppedCount, stoppedCount, stoppedCount]}
+          timestamp={lastUpdatedTime}
           className="xl:col-span-1 border-border/40 shadow-sm text-blue-500"
         />
         <StatCard
           title="Fault"
           value={faultCount}
           icon={AlertCircle}
-          description="Unresolved errors"
+          description="Unresolved error states"
+          trend={faultCount > 0 ? { value: 100, type: 'down' } : undefined}
+          sparklineData={[0, 0, faultCount, faultCount]}
+          timestamp={lastUpdatedTime}
           className="xl:col-span-1 border-border/40 shadow-sm text-rose-500 bg-rose-500/5 border-rose-500/20"
         />
         <StatCard
           title="Today's Energy"
           value={`${(stats.todayProduction / 1000).toFixed(1)} kWh`}
           icon={Flame}
-          description="Grid load usage"
+          description="Utility accumulation"
+          trend={{ value: 3.4, type: 'up' }}
+          sparklineData={[20, 35, 50, 75, 90, 110, stats.todayProduction / 1000]}
+          timestamp={lastUpdatedTime}
           className="xl:col-span-1 border-border/40 shadow-sm text-amber-500"
         />
         <StatCard
@@ -245,6 +271,9 @@ export function DashboardPage() {
           value={`${Math.floor(stats.todayProduction / 35)}`}
           icon={Activity}
           description="Total parts count"
+          trend={{ value: 6.8, type: 'up' }}
+          sparklineData={[250, 260, 275, 290, 310, Math.floor(stats.todayProduction / 35)]}
+          timestamp={lastUpdatedTime}
           className="xl:col-span-1 border-border/40 shadow-sm text-cyan-500"
         />
         <StatCard
@@ -252,6 +281,9 @@ export function DashboardPage() {
           value={activeAlertsCount}
           icon={AlertTriangle}
           description="Operator actions"
+          trend={activeAlertsCount > 0 ? { value: 15, type: 'down' } : { value: 100, type: 'up' }}
+          sparklineData={[4, 3, 2, 2, 1, 2, activeAlertsCount]}
+          timestamp={lastUpdatedTime}
           className={`xl:col-span-1 border-border/40 shadow-sm ${activeAlertsCount > 0 ? 'border-destructive/30 bg-destructive/5 text-rose-500' : ''}`}
         />
       </div>

@@ -124,3 +124,26 @@
 .live-indicator {
   animation: live-pulse 2s ease-in-out infinite;
 }
+
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .no-print, header, aside, nav, button, select, input, .no-print * {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  @page {
+    size: auto;
+    margin: 20mm;
+  }
+}
+

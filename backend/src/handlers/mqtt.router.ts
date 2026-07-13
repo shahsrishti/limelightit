@@ -5,12 +5,12 @@ import { handleHealth } from './health.handler';
 import { handleDowntime } from './downtime.handler';
 import { handleLwt } from './lwt.handler';
 import { handleLifecycle } from './lifecycle.handler';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { telemetryStats } from '../utils/stats';
+import { prisma } from '../prisma/client'; // Use the shared singleton — NOT new PrismaClient()
 
 /**
  * Auto-provision factory, machine, and device if they don't exist.
+ * Uses the global shared Prisma singleton to avoid pool exhaustion.
  */
 const ensureMachineExists = async (machineId: string, deviceId: string, macAddress: string) => {
   try {
@@ -64,6 +64,7 @@ const ensureMachineExists = async (machineId: string, deviceId: string, macAddre
  * Supports both legacy mfg/ and production Limelight/factory/ topics.
  */
 export const routeMqttMessage = async (topic: string, payload: Buffer): Promise<void> => {
+  telemetryStats.incrementMessageCounter();
   let rawPayload: any;
 
   // Safe JSON parse

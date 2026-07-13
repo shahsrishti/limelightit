@@ -12,6 +12,7 @@ import { env } from './config/env';
 import authRoutes from './routes/auth.routes';
 import adminRoutes from './routes/admin.routes';
 import { HealthController } from './controllers/health.controller';
+import { verifyJwt } from './middleware/auth.middleware';
 
 const app: Application = express();
 const healthController = new HealthController();
@@ -27,7 +28,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(compression());
 
-// Rate Limiting
+// Rate Limiting — global API limiter
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: env.NODE_ENV === 'development' ? 10000 : 1000,
@@ -37,6 +38,16 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
+// Stricter rate limiter for authentication endpoints (brute-force protection)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: env.NODE_ENV === 'development' ? 1000 : 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many login attempts, please try again later.' }
+});
+app.use('/api/v1/auth/login', authLimiter);
+
 // Request Logging
 app.use((req: Request, res: Response, next: NextFunction) => {
   logger.info(`=> ${req.method} ${req.url}`);
@@ -45,6 +56,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // Routes
 app.get('/api/v1/health', healthController.getHealth.bind(healthController));
+app.get('/api/v1/monitoring', verifyJwt as any, healthController.getMonitoring.bind(healthController));
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1', adminRoutes);
 

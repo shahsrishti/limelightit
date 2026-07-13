@@ -2,6 +2,7 @@ import { prisma } from '../prisma/client';
 import { logger } from '../utils/logger';
 import { HealthPayloadSchema } from '../validators/mqtt.validator';
 import { emit, SocketEvents } from '../socket/emitter';
+import { heartbeatService } from '../services/heartbeat.service';
 
 export const handleHealth = async (topic: string, raw: unknown): Promise<void> => {
   const result = HealthPayloadSchema.safeParse(raw);
@@ -34,6 +35,13 @@ export const handleHealth = async (topic: string, raw: unknown): Promise<void> =
     });
 
     logger.info({ deviceId: payload.deviceId }, 'Device health recorded');
+
+    // Resolve offline alert if active
+    if (payload.machineId) {
+      heartbeatService.handleDeviceResume(payload.machineId).catch((err: any) =>
+        logger.error({ machineId: payload.machineId, err }, 'Failed to process heartbeat resume')
+      );
+    }
 
     emit(SocketEvents.DEVICE_HEALTH_UPDATE, {
       deviceId: payload.deviceId,

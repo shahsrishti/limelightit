@@ -151,7 +151,8 @@ model Alert {
   resolved    Boolean  @default(false)
   timestamp   DateTime @default(now())
 
-  @@index([machineId, resolved])
+  @@index([machineId, resolved])  // Dashboard active alert count
+  @@index([resolved])              // Global unresolved alert queries
   @@map("alerts")
 }
 
@@ -164,6 +165,7 @@ model DowntimeSession {
   reason      String?
 
   @@index([machineId, startTime])
+  @@index([machineId, endTime])  // Heartbeat deduplication: WHERE endTime IS NULL
   @@map("downtime_sessions")
 }
 

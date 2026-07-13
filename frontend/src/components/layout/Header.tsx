@@ -4,7 +4,7 @@ import { Breadcrumb } from './Breadcrumb';
 import { NotificationPanel } from './NotificationPanel';
 import { UserMenu } from './UserMenu';
 import { Button } from '../ui/Button';
-import { Moon, Sun, Menu, Search, Cpu, Wifi } from 'lucide-react';
+import { Moon, Sun, Menu, Search, Cpu } from 'lucide-react';
 import { useUIStore } from '@/store/ui.store';
 import apiClient from '@/lib/axios';
 import { ApiResponse } from '@/types/api.types';
@@ -25,6 +25,7 @@ export function Header() {
   const router = useRouter();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [allItems, setAllItems] = useState<SearchResult[]>([]);
@@ -41,10 +42,18 @@ export function Header() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Debounce search query input
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
   // Keyboard shortcut Ctrl+K to focus search
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      if ((e.ctrlKey || e.key === 'k') && e.key === 'k') {
         e.preventDefault();
         const inputEl = searchRef.current?.querySelector('input');
         inputEl?.focus();
@@ -87,14 +96,14 @@ export function Header() {
     }
   };
 
-  // Perform search locally
+  // Perform search locally on debounced query
   useEffect(() => {
-    if (!searchQuery.trim()) {
+    if (!debouncedQuery.trim()) {
       setSearchResults([]);
       return;
     }
 
-    const query = searchQuery.toLowerCase();
+    const query = debouncedQuery.toLowerCase();
     const filtered = allItems.filter(
       (item) =>
         item.name.toLowerCase().includes(query) ||
@@ -104,12 +113,31 @@ export function Header() {
         item.firmware.toLowerCase().includes(query)
     );
     setSearchResults(filtered.slice(0, 8)); // Cap at 8 results
-  }, [searchQuery, allItems]);
+  }, [debouncedQuery, allItems]);
 
   const handleSelectResult = (machineId: string) => {
     setIsSearchFocused(false);
     setSearchQuery('');
     router.push(`/machines/${machineId}`);
+  };
+
+  // HIGHLIGHT MATCHING SUBSTRINGS
+  const highlightMatch = (text: string, query: string) => {
+    if (!query.trim()) return <span>{text}</span>;
+    const parts = text.split(new RegExp(`(${query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi'));
+    return (
+      <span>
+        {parts.map((part, i) =>
+          part.toLowerCase() === query.toLowerCase() ? (
+            <mark key={i} className="bg-primary/30 text-primary-foreground font-bold px-0.5 rounded">
+              {part}
+            </mark>
+          ) : (
+            part
+          )
+        )}
+      </span>
+    );
   };
 
   return (
@@ -165,7 +193,9 @@ export function Header() {
                     <Cpu className="h-4.5 w-4.5 text-primary mt-0.5" />
                     <div className="flex-1 space-y-0.5">
                       <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-foreground">{item.name}</span>
+                        <span className="text-xs font-bold text-foreground">
+                          {highlightMatch(item.name, debouncedQuery)}
+                        </span>
                         <span
                           className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
                             item.status === 'RUNNING'
@@ -179,10 +209,12 @@ export function Header() {
                         </span>
                       </div>
                       <p className="text-[10px] text-muted-foreground font-mono">
-                        ID: {item.deviceId} • MAC: {item.macAddress}
+                        ID: {highlightMatch(item.deviceId, debouncedQuery)} • MAC: {highlightMatch(item.macAddress, debouncedQuery)}
                       </p>
                       <div className="flex items-center gap-2 pt-0.5 text-[9px] text-muted-foreground">
-                        <span className="bg-muted px-1 rounded font-mono">FW: {item.firmware}</span>
+                        <span className="bg-muted px-1 rounded font-mono">
+                          FW: {highlightMatch(item.firmware, debouncedQuery)}
+                        </span>
                       </div>
                     </div>
                   </button>
@@ -218,4 +250,5 @@ export function Header() {
     </header>
   );
 }
+
 

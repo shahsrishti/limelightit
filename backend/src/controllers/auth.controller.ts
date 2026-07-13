@@ -57,7 +57,7 @@ export class AuthController {
 
   public async getCurrentUser(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const user = await authService.getUserById(req.user.userId);
+      const user = await authService.getUserById(req.user!.userId);
       res.status(200).json(successResponse(user, 'Current user retrieved'));
     } catch (error) {
       next(error);
@@ -67,7 +67,7 @@ export class AuthController {
   public async changePassword(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const { oldPassword, newPassword } = req.body;
-      await authService.changePassword(req.user.userId, oldPassword, newPassword);
+      await authService.changePassword(req.user!.userId, oldPassword, newPassword);
       res.status(200).json(successResponse(null, 'Password changed successfully'));
     } catch (error) {
       next(error);
